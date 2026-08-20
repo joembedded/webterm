@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebUART Terminal</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <main class="terminal">
+    <header class="toolbar">
+      <div>
+        <h1>WebUART Terminal</h1>
+        <p id="status" class="status" aria-live="polite">Nicht verbunden · 115200 Baud</p>
+      </div>
+      <div class="toolbar-actions">
+        <button id="clear-button" class="button button-secondary" type="button">Leeren</button>
+        <button id="connect-button" class="button" type="button">Port verbinden</button>
+      </div>
+    </header>
+
+    <section id="history" class="history" aria-label="Terminal-Verlauf" aria-live="polite"></section>
+
+    <form id="send-form" class="input-row">
+      <label class="visually-hidden" for="command-input">Terminal-Eingabe</label>
+      <input id="command-input" type="text" placeholder="Kommando eingeben …" autocomplete="off" disabled>
+      <button id="send-button" class="button" type="submit" disabled>Senden</button>
+    </form>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
