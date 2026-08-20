@@ -1,7 +1,33 @@
+/* 
+* WeUART Terminal
+* ----------------
+* Terminal für serielle Kommunikation mit Mikrocontrollern über Web Serial API 
+*  
+* 
+* (C)JoEmbedded.de
+*/
+
 "use strict";
 
 const BAUD_RATE = 115200;
 const MAX_TIME_MS = 999999;
+const MAX_DISPLAYED_LINES = 100;
+const NAMED_CTRL_CHARS = new Map([
+  [0x00, "\\0"],
+  [0x07, "\\a"],
+  [0x08, "\\b"],
+  [0x09, "\\t"],
+  [0x0a, "\\n"],
+  [0x0b, "\\v"],
+  [0x0c, "\\f"],
+  [0x0d, "\\r"],
+  [0x1b, "\\e"],
+]);
+const SCRIPTS = [
+  { name: "Wecken" },
+  { name: "Netz-Test" },
+  { name: "Batterie" },
+];
 
 const connectButton = document.querySelector("#connect-button");
 const clearButton = document.querySelector("#clear-button");
@@ -10,6 +36,11 @@ const sendButton = document.querySelector("#send-button");
 const commandInput = document.querySelector("#command-input");
 const history = document.querySelector("#history");
 const statusElement = document.querySelector("#status");
+const showCtrlCharsCheckbox = document.querySelector("#show-ctrl-chars");
+const noScrollCheckbox = document.querySelector("#no-scroll");
+const scriptMenu = document.querySelector("#script-menu");
+const scriptMenuButton = document.querySelector("#script-menu-button");
+const scriptList = document.querySelector("#script-list");
 
 let port = null;
 let reader = null;
@@ -17,6 +48,8 @@ let readLoop = null;
 let commandStartedAt = performance.now();
 let currentReceiveLine = null;
 let pendingCarriageReturn = false;
+let nextLineId = 0;
+const lineIdFifo = [];
 
 function elapsedMilliseconds() {
   return Math.min(MAX_TIME_MS, Math.max(0, Math.round(performance.now() - commandStartedAt)));
@@ -26,13 +59,71 @@ function formatTime(milliseconds) {
   return String(milliseconds).padStart(6, "0");
 }
 
+function isAsciiControlCharacter(character) {
+  const codePoint = character.codePointAt(0);
+  return codePoint <= 0x1f || codePoint === 0x7f;
+}
+
+function formatControlCharacter(character) {
+  const codePoint = character.codePointAt(0);
+  return NAMED_CTRL_CHARS.get(codePoint)
+    ?? `\\x${codePoint.toString(16).toUpperCase().padStart(2, "0")}`;
+}
+
+function scriptsInit() {
+  scriptList.replaceChildren();
+
+  for (const script of SCRIPTS) {
+    const button = document.createElement("button");
+    button.className = "script-button";
+    button.type = "button";
+    button.disabled = true;
+    button.textContent = script.name;
+    button.addEventListener("click", () => {
+      alert(script.name);
+      scriptMenu.open = false;
+    });
+    scriptList.append(button);
+  }
+}
+
+function setScriptsEnabled(enabled) {
+  scriptMenuButton.setAttribute("aria-disabled", String(!enabled));
+
+  for (const button of scriptList.querySelectorAll(".script-button")) {
+    button.disabled = !enabled;
+  }
+
+  if (!enabled) {
+    scriptMenu.open = false;
+  }
+}
+
 function scrollToLatest() {
+  if (noScrollCheckbox.checked) {
+    return;
+  }
+
   history.scrollTop = history.scrollHeight;
+}
+
+function limitDisplayedLines() {
+  while (lineIdFifo.length > MAX_DISPLAYED_LINES) {
+    const oldestLineId = lineIdFifo.shift();
+    const oldestLine = document.getElementById(oldestLineId);
+
+    if (oldestLine === currentReceiveLine) {
+      currentReceiveLine = null;
+    }
+
+    oldestLine?.remove();
+  }
 }
 
 // Hier generell Zeile anfuegen 
 function createLine(type, text, direction) {
   const line = document.createElement("div");
+  line.id = `history-line-${nextLineId++}`;
   line.className = `line ${type}`;
 
   const time = document.createElement("span");
@@ -50,6 +141,8 @@ function createLine(type, text, direction) {
 
   line.append(time, marker, content);
   history.append(line);
+  lineIdFifo.push(line.id);
+  limitDisplayedLines();
   scrollToLatest();
   return line;
 }
@@ -78,18 +171,33 @@ function finishReceivedLine() {
 function processReceivedText(text) {
   for (const character of text) {
     if (pendingCarriageReturn) {
-      finishReceivedLine();
       pendingCarriageReturn = false;
 
       if (character === "\n") {
+        if (showCtrlCharsCheckbox.checked) {
+          appendReceivedCharacter(formatControlCharacter(character));
+        }
+        finishReceivedLine();
         continue;
       }
+
+      finishReceivedLine();
     }
 
     if (character === "\r") {
       pendingCarriageReturn = true;
+      if (showCtrlCharsCheckbox.checked) {
+        appendReceivedCharacter(formatControlCharacter(character));
+      }
     } else if (character === "\n") {
+      if (showCtrlCharsCheckbox.checked) {
+        appendReceivedCharacter(formatControlCharacter(character));
+      }
       finishReceivedLine();
+    } else if (isAsciiControlCharacter(character)) {
+      if (showCtrlCharsCheckbox.checked) {
+        appendReceivedCharacter(formatControlCharacter(character));
+      }
     } else {
       appendReceivedCharacter(character);
     }
@@ -103,6 +211,7 @@ function setConnected(connected) {
   commandInput.disabled = !connected;
   sendButton.disabled = !connected;
   statusElement.classList.toggle("connected", connected);
+  setScriptsEnabled(connected);
   statusElement.textContent = connected
     ? `Verbunden · ${BAUD_RATE} Baud`
     : `Nicht verbunden · ${BAUD_RATE} Baud`;
@@ -221,8 +330,22 @@ connectButton.addEventListener("click", async () => {
 
 clearButton.addEventListener("click", () => {
   history.replaceChildren();
+  lineIdFifo.length = 0;
+  nextLineId = 0;
   currentReceiveLine = null;
   pendingCarriageReturn = false;
+});
+
+noScrollCheckbox.addEventListener("change", () => {
+  if (!noScrollCheckbox.checked) {
+    scrollToLatest();
+  }
+});
+
+scriptMenuButton.addEventListener("click", (event) => {
+  if (scriptMenuButton.getAttribute("aria-disabled") === "true") {
+    event.preventDefault();
+  }
 });
 
 sendForm.addEventListener("submit", async (event) => {
@@ -237,6 +360,8 @@ sendForm.addEventListener("submit", async (event) => {
   await sendCommand(command);
   commandInput.focus();
 });
+
+scriptsInit();
 
 navigator.serial?.addEventListener("disconnect", (event) => {
   if (event.target === port) {

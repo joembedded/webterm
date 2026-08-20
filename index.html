@@ -19,6 +19,24 @@
       </div>
     </header>
 
+    <section class="terminal-controls" aria-label="Terminal-Optionen">
+      <div class="display-options">
+        <label class="toggle-control">
+          <input id="show-ctrl-chars" type="checkbox" checked>
+          <span>Steuerzeichen</span>
+        </label>
+        <label class="toggle-control">
+          <input id="no-scroll" type="checkbox">
+          <span>noscroll</span>
+        </label>
+      </div>
+
+      <details id="script-menu" class="script-menu">
+        <summary id="script-menu-button" class="button button-secondary" aria-disabled="true">Skripte</summary>
+        <div id="script-list" class="script-list"></div>
+      </details>
+    </section>
+
     <section id="history" class="history" aria-label="Terminal-Verlauf" aria-live="polite"></section>
 
     <form id="send-form" class="input-row">

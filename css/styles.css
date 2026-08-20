@@ -32,7 +32,7 @@ input {
 
 .terminal {
   display: grid;
-  grid-template-rows: auto minmax(280px, 1fr) auto;
+  grid-template-rows: auto auto minmax(280px, 1fr) auto;
   width: min(1100px, 100%);
   height: calc(100vh - 48px);
   margin: 0 auto;
@@ -70,6 +70,103 @@ h1 {
 .toolbar-actions {
   display: flex;
   gap: 8px;
+}
+
+.terminal-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.display-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.toggle-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text);
+  font-size: 0.88rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-control input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.script-menu {
+  position: relative;
+}
+
+.script-menu summary {
+  display: flex;
+  align-items: center;
+  list-style: none;
+}
+
+.script-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.script-menu summary[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.script-menu summary::after {
+  margin-left: 8px;
+  content: "\25be";
+}
+
+.script-menu[open] summary::after {
+  content: "\25b4";
+}
+
+.script-list {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  min-width: 160px;
+  padding: 5px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+}
+
+.script-button {
+  padding: 9px 11px;
+  color: var(--text);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.script-button:hover,
+.script-button:focus-visible {
+  background: #222b34;
+  outline: none;
+}
+
+.script-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .button {
@@ -202,5 +299,9 @@ h1 {
 
   .toolbar-actions .button {
     flex: 1;
+  }
+
+  .terminal-controls {
+    gap: 10px;
   }
 }
