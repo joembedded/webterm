@@ -23,10 +23,28 @@ const NAMED_CTRL_CHARS = new Map([
   [0x0d, "\\r"],
   [0x1b, "\\e"],
 ]);
-const SCRIPTS = [
-  { name: "Wecken" },
-  { name: "Netz-Test" },
-  { name: "Batterie" },
+// Neue Skripte koennen als weitere mehrzeilige Strings ergaenzt werden.
+const SCRIPT_SOURCES = [
+`.MACRO Start GNSS Voll
+AT
+.PRINT Wecken...
+.* Diese Zeile ist ein Kommentar
+.WAIT 1000
+AT#GNSSINIT=1,0
+AT#GNSSFIX=1,1,1,111111
+AT#GNSSSV=2
+.PRINT GNSS am Laufen`,
+
+`.MACRO Wecken
+.* Dieses Script weckt das Modem
+AT
+.WAIT 1000
+AT
+.PRINT Wach!`,
+
+`.MACRO Geraetinfo
+ATI`
+
 ];
 
 const connectButton = document.querySelector("#connect-button");
@@ -70,20 +88,85 @@ function formatControlCharacter(character) {
     ?? `\\x${codePoint.toString(16).toUpperCase().padStart(2, "0")}`;
 }
 
+function parseScript(source) {
+  const lines = source.replace(/\r\n?/g, "\n").split("\n");
+  const macroMatch = lines[0].match(/^\.MACRO\s+(.+)$/);
+
+  if (!macroMatch) {
+    throw new Error("Die erste Zeile muss '.MACRO <Name>' enthalten.");
+  }
+
+  return {
+    name: macroMatch[1].trim(),
+    lines: lines.slice(1),
+  };
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function executeScript(script) {
+  if (!port?.writable) {
+    return;
+  }
+
+  setScriptsEnabled(false);
+
+  try {
+    for (const line of script.lines) {
+      if (!port?.writable) {
+        throw new Error("UART-Verbindung wurde getrennt.");
+      }
+
+      if (line.trim().length === 0 || line.startsWith(".*")) { // Kommentar igno
+        continue;
+      }
+
+      const waitMatch = line.match(/^\.WAIT\s+(\d+)\s*$/);
+      if (waitMatch) {
+        await wait(Number(waitMatch[1]));
+        continue;
+      }
+
+      const printMatch = line.match(/^\.PRINT(?:\s(.*))?$/);
+      if (printMatch) {
+        addSystemLine(printMatch[1] ?? "");
+        continue;
+      }
+
+      if (line.startsWith(".")) {
+        throw new Error(`Unbekanntes Meta-Kommando: ${line}`);
+      }
+
+      await sendCommand(line);
+    }
+  } catch (error) {
+    addSystemLine(`Script "${script.name}" abgebrochen: ${error.message}`);
+  } finally {
+    setScriptsEnabled(Boolean(port?.writable));
+  }
+}
+
 function scriptsInit() {
   scriptList.replaceChildren();
 
-  for (const script of SCRIPTS) {
-    const button = document.createElement("button");
-    button.className = "script-button";
-    button.type = "button";
-    button.disabled = true;
-    button.textContent = script.name;
-    button.addEventListener("click", () => {
-      alert(script.name);
-      scriptMenu.open = false;
-    });
-    scriptList.append(button);
+  for (const source of SCRIPT_SOURCES) {
+    try {
+      const script = parseScript(source);
+      const button = document.createElement("button");
+      button.className = "script-button";
+      button.type = "button";
+      button.disabled = true;
+      button.textContent = script.name;
+      button.addEventListener("click", () => {
+        scriptMenu.open = false;
+        void executeScript(script);
+      });
+      scriptList.append(button);
+    } catch (error) {
+      console.error("Ungueltiges Script:", error);
+    }
   }
 }
 
